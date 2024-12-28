@@ -123,8 +123,15 @@ def visualizar_senhas_interface():
 
             label_senha_edicao = tk.Label(janela_edicao, text="Senha:", font=("Arial",12), bg="#CCFF00")
             entry_senha_edicao = tk.Entry(janela_edicao, show="*", font=("Arial",12))
-            entry_senha_edicao.insert(0, senha_descriptografada_atual)
 
+            def toggle_senha():  # Função para alternar entre mostrar e esconder a senha
+                if entry_senha_edicao.cget("show") == "*":
+                    entry_senha_edicao.config(show="")
+                else:
+                    entry_senha_edicao.config(show="*")
+
+            botao_toggle_senha = tk.Button(janela_edicao, text="👁️", command=toggle_senha, font=("Arial",12,"bold"), bg="#008B8D" , fg="#F6FFBC")
+            entry_senha_edicao.insert(0, senha_descriptografada_atual)
 
             def salvar_edicao(): #função para salvar as alterações feitas
                 novo_site = entry_site_edicao.get()
@@ -149,6 +156,7 @@ def visualizar_senhas_interface():
             label_senha_edicao.grid(row=3, column=0)
             entry_senha_edicao.grid(row=3, column=1)
             botao_salvar_edicao.grid(row=4, column=1)
+            botao_toggle_senha.grid(row=3, column=2, padx=5, pady=5)  # Botão do lado direito
 
         except IndexError:
             messagebox.showerror("Erro", "Selecione um item para editar.")

@@ -3,6 +3,7 @@ from tkinter import messagebox, scrolledtext, simpledialog
 import sqlite3
 from cryptography.fernet import Fernet
 import os
+from PIL import Image, ImageTk
 
 # --- Funções de Criptografia ---
 def gerar_chave():
@@ -130,8 +131,22 @@ def visualizar_senhas_interface():
                 else:
                     entry_senha_edicao.config(show="*")
 
-            botao_toggle_senha = tk.Button(janela_edicao, text="👁️", command=toggle_senha, font=("Arial",12,"bold"), bg="#008B8D" , fg="#F6FFBC")
             entry_senha_edicao.insert(0, senha_descriptografada_atual)
+
+            try:
+                # Carregando a imagem usando PIL para suportar mais formatos
+                imagem_olho = Image.open("icone_olho.png") # ou .jpg, .jpeg, etc.
+                icone_olho = ImageTk.PhotoImage(imagem_olho)
+
+                # Cria o botão com a imagem
+                botao_toggle_senha = tk.Button(janela_edicao, image=icone_olho, command=toggle_senha, borderwidth=0, highlightthickness=0)
+
+                # Importante: mantenha uma referência à imagem para evitar que ela seja coletada pelo garbage collector
+                botao_toggle_senha.image = icone_olho  # Atribui a imagem como um atributo do botão
+
+            except FileNotFoundError:
+                messagebox.showerror("Erro", "Arquivo 'icone_olho.png' não encontrado.")
+                return # Sai da função se a imagem não for encontrada
 
             def salvar_edicao(): #função para salvar as alterações feitas
                 novo_site = entry_site_edicao.get()

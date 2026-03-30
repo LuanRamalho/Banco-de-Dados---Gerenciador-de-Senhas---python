@@ -2,6 +2,8 @@ import tkinter as tk
 from tkinter import messagebox, ttk, simpledialog
 import json
 import os
+import random
+import string
 from cryptography.fernet import Fernet
 
 # --- Configurações de Criptografia ---
@@ -34,15 +36,73 @@ def salvar_dados(dados):
     with open(DB_JSON, "w", encoding="utf-8") as f:
         json.dump(dados, f, indent=4, ensure_ascii=False)
 
+# --- Janela do Gerador de Senhas ---
+class JanelaGerador(tk.Toplevel):
+    def __init__(self, master):
+        super().__init__(master)
+        self.title("Gerar Senha Forte")
+        self.geometry("350x450")
+        self.configure(bg="#f0f0f0")
+        self.resizable(False, False)
+
+        tk.Label(self, text="GERADOR DE SENHAS", font=("Arial", 12, "bold"), bg="#f0f0f0", pady=10).pack()
+
+        # Opções
+        self.vars = {
+            "Maiúsculas": tk.BooleanVar(value=True),
+            "Minúsculas": tk.BooleanVar(value=True),
+            "Números": tk.BooleanVar(value=True),
+            "Especiais": tk.BooleanVar(value=True)
+        }
+
+        for texto, var in self.vars.items():
+            tk.Checkbutton(self, text=texto, variable=var, bg="#f0f0f0", font=("Arial", 10)).pack(anchor="w", padx=50)
+
+        # Tamanho
+        tk.Label(self, text="Tamanho da Senha:", bg="#f0f0f0", pady=5).pack()
+        self.ent_tamanho = tk.Entry(self, width=5, justify="center")
+        self.ent_tamanho.insert(0, "16")
+        self.ent_tamanho.pack()
+
+        # Resultado
+        self.ent_resultado = tk.Entry(self, font=("Consolas", 12), justify="center", bd=2)
+        self.ent_resultado.pack(pady=20, padx=20, fill="x")
+
+        tk.Button(self, text="Gerar Senha", command=self.gerar, bg="#2196F3", fg="white", font=("Arial", 10, "bold")).pack(pady=5)
+        tk.Button(self, text="Copiar Senha", command=self.copiar, bg="#FF9800", fg="white", font=("Arial", 10, "bold")).pack(pady=5)
+
+    def gerar(self):
+        caracteres = ""
+        if self.vars["Maiúsculas"].get(): caracteres += string.ascii_uppercase
+        if self.vars["Minúsculas"].get(): caracteres += string.ascii_lowercase
+        if self.vars["Números"].get(): caracteres += string.digits
+        if self.vars["Especiais"].get(): caracteres += "!@#$%^&*()_+-=[]{}|;:,.<>?"
+
+        if not caracteres:
+            messagebox.showwarning("Aviso", "Selecione pelo menos uma opção!")
+            return
+
+        try:
+            tamanho = int(self.ent_tamanho.get())
+            senha = "".join(random.choice(caracteres) for _ in range(tamanho))
+            self.ent_resultado.delete(0, tk.END)
+            self.ent_resultado.insert(0, senha)
+        except ValueError:
+            messagebox.showerror("Erro", "Insira um número válido para o tamanho.")
+
+    def copiar(self):
+        self.clipboard_clear()
+        self.clipboard_append(self.ent_resultado.get())
+        messagebox.showinfo("Copiado", "Senha copiada para a área de transferência!")
+
 # --- Interface de Detalhes e Edição ---
 class JanelaDetalhes(tk.Toplevel):
     def __init__(self, master, dados_originais, index=None):
         super().__init__(master)
         self.title("Detalhes da Conta")
-        self.geometry("500x600")
+        self.geometry("500x700")
         self.configure(bg="#f0f0f0")
         
-        # Estrutura base para novos registros ou cópia de existentes
         if index is not None:
             self.dados = dados_originais[index].copy()
         else:
@@ -51,8 +111,13 @@ class JanelaDetalhes(tk.Toplevel):
         self.index = index
         self.dados_originais = dados_originais
         self.entries = {}
+        self.senhas_extras = [] # Lista para rastrear quais campos são do tipo senha
         
-        # Usamos um Canvas para permitir scroll caso haja muitos campos extras
+        # Identificar quais campos já existentes são senhas (além do principal)
+        for chave_nome in self.dados.keys():
+            if "senha" in chave_nome.lower() and chave_nome.lower() != "senha":
+                self.senhas_extras.append(chave_nome)
+
         self.container = tk.Frame(self, bg="#f0f0f0")
         self.container.pack(fill="both", expand=True, padx=20, pady=20)
         
@@ -60,16 +125,22 @@ class JanelaDetalhes(tk.Toplevel):
         
         # Rodapé da Janela
         btn_frame = tk.Frame(self, bg="#f0f0f0")
-        btn_frame.pack(fill="x", pady=20)
+        btn_frame.pack(fill="x", pady=10)
         
-        tk.Button(btn_frame, text="+ Campo Extra", command=self.add_campo_extra, 
-                  bg="#2196F3", fg="white", font=("Arial", 9, "bold")).pack(side="left", padx=20)
+        # Grid de botões superior
+        tk.Button(btn_frame, text="+ Texto Extra", command=lambda: self.add_campo(False), 
+                  bg="#2196F3", fg="white", font=("Arial", 8, "bold")).pack(side="left", padx=10)
         
-        tk.Button(btn_frame, text="Salvar Alterações", command=self.salvar, 
-                  bg="#4CAF50", fg="white", font=("Arial", 10, "bold")).pack(side="right", padx=20)
+        tk.Button(btn_frame, text="+ Senha Extra", command=lambda: self.add_campo(True), 
+                  bg="#9C27B0", fg="white", font=("Arial", 8, "bold")).pack(side="left", padx=10)
+
+        tk.Button(btn_frame, text="🔑 Gerador", command=lambda: JanelaGerador(self), 
+                  bg="#607D8B", fg="white", font=("Arial", 8, "bold")).pack(side="left", padx=10)
+        
+        tk.Button(self, text="Salvar Alterações", command=self.salvar, 
+                  bg="#4CAF50", fg="white", font=("Arial", 10, "bold")).pack(fill="x", padx=20, pady=10)
 
     def renderizar_campos(self):
-        """Renderiza campos fixos e extras com botões de ação."""
         for widget in self.container.winfo_children():
             widget.destroy()
         self.entries = {}
@@ -77,16 +148,15 @@ class JanelaDetalhes(tk.Toplevel):
         campos_fixos = ["site", "nome", "usuario", "senha"]
             
         for i, (label, valor) in enumerate(self.dados.items()):
-            # Label do campo
             tk.Label(self.container, text=f"{label.upper()}:", bg="#f0f0f0", 
                      font=("Arial", 8, "bold"), fg="#555").grid(row=i, column=0, sticky="w", pady=8)
             
-            # Frame para alinhar Entry + Botões
             frame_input = tk.Frame(self.container, bg="#f0f0f0")
             frame_input.grid(row=i, column=1, sticky="ew", pady=5, padx=5)
             
-            # Tratamento de senha
-            is_senha = (label == "senha")
+            # É senha se for o campo fixo ou estiver na lista de extras
+            is_senha = (label == "senha" or label in self.senhas_extras)
+            
             val_str = valor
             if is_senha and valor:
                 try: val_str = fernet.decrypt(valor.encode()).decode()
@@ -97,51 +167,51 @@ class JanelaDetalhes(tk.Toplevel):
             ent.pack(side="left", fill="x", expand=True)
             self.entries[label] = ent
             
-            # Botão de Olho (Apenas para Senha)
             if is_senha:
-                self.ent_senha = ent
-                self.btn_olho = tk.Button(frame_input, text="👁️", width=3, command=self.toggle_senha, 
-                                         relief="flat", bg="#f0f0f0", cursor="hand2")
-                self.btn_olho.pack(side="right", padx=2)
+                # Botão Olho
+                btn_olho = tk.Button(frame_input, text="👁️", width=3, relief="flat", bg="#f0f0f0", cursor="hand2")
+                btn_olho.config(command=lambda e=ent, b=btn_olho: self.toggle_senha_dinamico(e, b))
+                btn_olho.pack(side="right", padx=2)
             
-            # Botão de Remover (Apenas para Campos Extras)
             if label not in campos_fixos:
-                btn_del = tk.Button(frame_input, text="🗑️", width=3, fg="red", relief="flat",
+                # Botão Excluir (X)
+                btn_del = tk.Button(frame_input, text="✕", width=3, fg="red", relief="flat", font=("Arial", 10, "bold"),
                                    command=lambda c=label: self.remover_campo(c), bg="#f0f0f0", cursor="hand2")
                 btn_del.pack(side="right", padx=2)
             
         self.container.columnconfigure(1, weight=1)
 
-    def toggle_senha(self):
-        """Alterna visibilidade da senha."""
-        if self.ent_senha.cget("show") == "*":
-            self.ent_senha.config(show="")
-            self.btn_olho.config(text="🙈")
+    def toggle_senha_dinamico(self, entry, botao):
+        if entry.cget("show") == "*":
+            entry.config(show="")
+            botao.config(text="🙈")
         else:
-            self.ent_senha.config(show="*")
-            self.btn_olho.config(text="👁️")
+            entry.config(show="*")
+            botao.config(text="👁️")
 
-    def add_campo_extra(self):
-        """Cria uma nova chave no dicionário NoSQL."""
-        nome = simpledialog.askstring("Novo Campo", "Nome do campo:")
+    def add_campo(self, eh_senha):
+        tipo = "Senha" if eh_senha else "Texto"
+        nome = simpledialog.askstring("Novo Campo", f"Nome do campo de {tipo}:")
         if nome:
             chave = nome.strip().lower()
             if chave not in self.dados:
                 self.dados[chave] = ""
+                if eh_senha:
+                    self.senhas_extras.append(chave)
                 self.renderizar_campos()
 
     def remover_campo(self, chave):
-        """Remove um campo extra do registro atual."""
         if messagebox.askyesno("Confirmar", f"Remover o campo '{chave}'?"):
+            if chave in self.senhas_extras:
+                self.senhas_extras.remove(chave)
             del self.dados[chave]
             self.renderizar_campos()
 
     def salvar(self):
-        """Converte as Entries de volta para o dicionário e salva no JSON."""
         novo_registro = {}
         for campo, entry in self.entries.items():
             valor = entry.get()
-            if campo == "senha":
+            if campo == "senha" or campo in self.senhas_extras:
                 valor = fernet.encrypt(valor.encode()).decode()
             novo_registro[campo] = valor
         
@@ -151,7 +221,7 @@ class JanelaDetalhes(tk.Toplevel):
             self.dados_originais.append(novo_registro)
             
         salvar_dados(self.dados_originais)
-        messagebox.showinfo("Sucesso", "Registro atualizado no JSON!")
+        messagebox.showinfo("Sucesso", "Banco JSON atualizado!")
         self.master.atualizar_listbox()
         self.destroy()
 
@@ -163,7 +233,6 @@ class AppPrincipal(tk.Tk):
         self.geometry("600x450")
         self.configure(bg="#00FF72")
         
-        # Header / Busca
         frame_topo = tk.Frame(self, bg="#00FF72")
         frame_topo.pack(fill="x", padx=15, pady=15)
         
@@ -172,12 +241,10 @@ class AppPrincipal(tk.Tk):
         self.ent_busca.pack(side="left", fill="x", expand=True, padx=10)
         self.ent_busca.bind("<KeyRelease>", lambda e: self.atualizar_listbox())
         
-        # Lista de Registros
         self.listbox = tk.Listbox(self, font=("Segoe UI", 10), selectbackground="#01731F")
         self.listbox.pack(fill="both", expand=True, padx=15)
         self.listbox.bind("<Double-1>", lambda e: self.abrir_detalhes())
 
-        # Botões de Ação
         frame_btns = tk.Frame(self, bg="#00FF72")
         frame_btns.pack(fill="x", pady=15)
         
